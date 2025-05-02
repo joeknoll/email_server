@@ -120,8 +120,8 @@ services:
       POSTFIXADMIN_SETUP_PASSWORD: "${POSTFIXADMIN_SETUP_PASSWORD}"
       POSTFIXADMIN_SMTP_SERVER: postfix
       POSTFIXADMIN_ENCRYPT: php_crypt:SHA512::{SHA512-CRYPT}
-      POSTFIXADMIN_DKIM: YES
-      POSTFIXADMIN_DKIM_ALL_ADMINS: YES
+      POSTFIXADMIN_DKIM: "YES"
+      POSTFIXADMIN_DKIM_ALL_ADMINS: "YES"
     depends_on:
       - mariadb
 
@@ -146,4 +146,4 @@ networks:
   mariadb:
   frontdoor:
     external: true
-    name: frontdoor
+    name: frontdoor_network
