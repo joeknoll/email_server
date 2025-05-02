@@ -33,6 +33,7 @@ services:
         condition: service_healthy
   postfix:
     build:
+      context: .
       dockerfile: Dockerfile.postfix
     read_only: true
     restart: unless-stopped
