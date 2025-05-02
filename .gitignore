@@ -1,0 +1,5 @@
+/.env
+/postfixadmin/config.php
+/opendkim/key.table
+/opendkim/signing.table
+/opendkim/trusted.hosts

@@ -1,0 +1,11 @@
+FROM alpine:latest
+
+RUN apk update && \
+    apk add libsasl postfix postfix-mysql postfix-policyd-spf-perl && \
+    rm -rf /var/cache/apk/*
+
+EXPOSE 25/tcp
+EXPOSE 465/tcp
+EXPOSE 587/tcp
+
+CMD /usr/sbin/postfix start-fg -v

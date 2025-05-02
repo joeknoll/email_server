@@ -1,0 +1,5 @@
+user = postfix
+password = ${MARIADB_PASSWORD}
+hosts = mariadb
+dbname = postfix
+query = SELECT username FROM mailbox WHERE username='%s' AND active = '1'

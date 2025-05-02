@@ -1,0 +1,149 @@
+services:
+  dovecot:
+    image: dovecot/dovecot
+    read_only: true
+    restart: unless-stopped
+    ports:
+      - '995:31990' # POP3 TLS
+      - '993:31993' # IMAP TLS
+    networks:
+      dovecot:
+        aliases:
+          - dovecot.local
+      mariadb:
+    volumes:
+      - './dovecot/conf.d:/etc/dovecot/conf.d:ro'
+      - 'vmail_data:/srv/vmail'
+      -  './dovecot/ssl:/etc/dovecot/ssl/:ro'
+      - './dovecot/dovecot.conf:/etc/dovecot/dovecot.conf:ro'
+    tmpfs:
+      - /tmp
+      - /run
+    deploy:
+      update_config:
+        failure_action: rollback
+    healthcheck:
+      test: [ "CMD-SHELL", "doveadm service status" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    depends_on:
+      mariadb:
+        condition: service_healthy
+  postfix:
+    build:
+      dockerfile: Dockerfile.postfix
+    read_only: true
+    restart: unless-stopped
+    ports:
+      - '25:25'
+      - '465:465'
+      - '587:587'
+    networks:
+      opendkim:
+      dovecot:
+      postfix:
+      mariadb:
+    volumes:
+      - ./postfix/postfix-files.d:/etc/postfix/postfix-files.d:ro,uid=100
+      - ./postfix/main.cf:/etc/postfix/main.cf:ro,uid=100
+      - ./postfix/master.cf:/etc/postfix/master.cf:ro,uid=100
+      - ./postfix/ssl:/etc/postfix/ssl/:ro,uid=100
+    tmpfs:
+      - /tmp
+      - /run
+      - /var/spool/postfix:uid=100
+      - /var/lib/postfix:uid=100
+    deploy:
+      update_config:
+        failure_action: rollback
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      dovecot:
+        condition: service_healthy
+      opendkim:
+        condition: service_healthy
+  mariadb:
+    image: mariadb:lts
+    restart: unless-stopped
+    environment:
+      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
+      MARIADB_DATABASE: postfix
+      MARIADB_USER: postfix
+      MARIADB_PASSWORD: "${MARIADB_PASSWORD}"
+    networks:
+      mariadb:
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD-SHELL", "mariadb -u $${MARIADB_USER} -p$${MARIADB_PASSWORD} -e use $${MARIADB_DATABASE}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+  opendkim:
+    image: instrumentisto/opendkim
+    volumes:
+      - ./opendkim/opendkim.conf:/etc/opendkim/opendkim.conf:ro
+      - ./opendkim/key.table:/etc/opendkim/key.table:ro
+      - ./opendkim/signing.table:/etc/opendkim/signing.table:ro
+      - ./opendkim/trusted.hosts:/etc/opendkim/trusted.hosts:ro
+      - ./opendkim/keys:/etc/opendkim/keys/:ro
+    networks:
+      opendkim:
+    deploy:
+      update_config:
+        failure_action: rollback
+    healthcheck:
+      test: [ "CMD-SHELL", "opendkim-testkey" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  postfixadm:
+    image: postfixadmin:latest
+    networks:
+      dovecot:
+      postfix:
+      mariadb:
+      frontdoor:
+    environment:
+      POSTFIXADMIN_DB_TYPE: mysqli
+      POSTFIXADMIN_DB_HOST: mariadb
+      POSTFIXADMIN_DB_PORT: 3306
+      POSTFIXADMIN_DB_USER: postfix
+      POSTFIXADMIN_DB_NAME: postfix
+      POSTFIXADMIN_DB_PASSWORD: "${MARIADB_PASSWORD}"
+      POSTFIXADMIN_SETUP_PASSWORD: "${POSTFIXADMIN_SETUP_PASSWORD}"
+      POSTFIXADMIN_SMTP_SERVER: postfix
+      POSTFIXADMIN_ENCRYPT: php_crypt:SHA512::{SHA512-CRYPT}
+      POSTFIXADMIN_DKIM: YES
+      POSTFIXADMIN_DKIM_ALL_ADMINS: YES
+    depends_on:
+      - mariadb
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    networks:
+      mariadb:
+      frontdoor:
+    environment:
+      PMA_HOST: mariadb
+    depends_on:
+      mariadb:
+        condition: service_healthy
+volumes:
+  mariadb_data:
+  vmail_data:
+
+networks:
+  opendkim:
+  dovecot:
+  postfix:
+  mariadb:
+  frontdoor:
+    external: true
+    name: frontdoor
